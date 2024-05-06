@@ -1,0 +1,46 @@
+syntax = "v1"
+
+info(
+    title: "base"
+    desc: "基本的类型"
+    author: "cplinux98@gmail.com"
+    email: "cplinux98@gmail.com"
+    version: "v1"
+)
+
+// The basic response with data | 基础带数据信息
+type BaseDataInfo {
+    // Error code | 错误代码
+    Code uint32    `json:"code"`
+
+    // Message | 提示信息
+    Msg  string `json:"msg"`
+
+    // Data | 数据
+    Data string `json:"data,omitempty"`
+}
+
+// The basic response without data | 基础不带数据信息
+type BaseMsgResp {
+    // Error code | 错误代码
+    Code uint32    `json:"code"`
+
+    // Message | 提示信息
+    Msg  string `json:"msg"`
+}
+
+// The page request parameters | 列表请求参数
+type PageReqInfo {
+    Page uint64 `form:"page,optional,default=1"`
+    PageSize uint64 `form:"pageSize,optional,default=20" validate:"gte=1,lte=100"`
+}
+
+//type PageRespInfo {
+//    Page uint64 `json:"page"`
+//    PageSize uint64 `json:"pageSize"`
+//}
+
+type BaseListInfo {
+    Total uint64 `json:"total"`
+
+}
