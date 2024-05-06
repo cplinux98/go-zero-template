@@ -1,0 +1,115 @@
+syntax = "v1"
+
+info(
+    title: "用户实例"
+    desc: "用户实例"
+    author: "cplinux98@gmail.com"
+    email: "cplinux98@gmail.com"
+    version: "v1"
+)
+
+import "../base.api"
+
+type User {
+    Id       int64  `json:"id"`
+    Mobile   string `json:"mobile"`
+    Nickname string `json:"nickname"`
+    Sex      int64  `json:"sex"`
+    Avatar   string `json:"avatar"`
+    Info     string `json:"info"`
+}
+
+// 新增用户
+type (
+    AddUserRequest {
+        Mobile   string `json:"mobile"`
+        Nickname string `json:"nickname"`
+        Sex      int64  `json:"sex"`
+        Avatar   string `json:"avatar"`
+        Info     string `json:"info"`
+    }
+
+    AddUserResponse {
+        BaseMsgResp
+
+        Data User `json:"data"`
+    }
+)
+// 查询用户详情
+type (
+    DetailUserRequest {
+        Id int64 `path:"id"`
+    }
+
+    DetailUserResponse {
+        BaseMsgResp
+
+        Data User `json:"data"`
+    }
+)
+
+// 查询用户列表
+type (
+    ListUserRequest {
+        PageReqInfo
+
+        Keyword string `form:"keyword,optional"` // 查询name关键词
+    }
+
+    ListUserInfo {
+        BaseListInfo
+//        PageRespInfo
+        List []User `json:"list"` // 用户信息列表
+    }
+
+    ListUserResponse {
+        BaseMsgResp
+
+        Data ListUserInfo `json:"data"` // 响应结构体data
+    }
+)
+
+// 更新用户信息
+type (
+    UpdateUserRequest {
+        Id int64 `path:"id"`
+        Mobile   string `json:"mobile"`
+        Nickname string `json:"nickname"`
+        Sex      int64  `json:"sex"`
+        Avatar   string `json:"avatar"`
+        Info     string `json:"info"`
+    }
+
+    UpdateUserResponse {
+        BaseMsgResp
+
+        Data User `json:"data"` // 响应结构体data
+    }
+)
+
+// 删除用户信息
+type (
+    DeleteUserRequest {
+        Id int64 `path:"id"` // 要删除的id
+    }
+)
+
+// 批量删除用户信息
+type (
+    BatchDeleteUserRequest {
+        Ids []int64 `json:"ids"` // 要删除的用户id列表
+    }
+)
+
+// 批量插入用户信息
+type (
+    BatchAddUserRequest {
+        Data []AddUserRequest `json:"data"`
+    }
+
+    BatchAddUserResponse {
+        BaseMsgResp
+
+        Data []User `json:"data"` // 响应结构体data
+    }
+)

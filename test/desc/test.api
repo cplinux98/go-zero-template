@@ -1,0 +1,48 @@
+syntax = "v1"
+
+info (
+	title:   "测试模板是否正常运行服务"
+	desc:    "测试模板是否正常运行服务"
+	author:  "cplinux98@gmail.com"
+	email:   "cplinux98@gmail.com"
+	version: "v1"
+)
+
+import (
+	"user/user.api"
+)
+
+@server (
+	prefix: test/v1
+	group:  user
+)
+service test {
+	@doc "新增用户"
+	@handler addUserHandler
+	post /user (AddUserRequest) returns (AddUserResponse)
+
+	@doc "获取用户详情"
+	@handler detailUserHandler
+	get /user/:id (DetailUserRequest) returns (DetailUserResponse)
+
+	@doc "获取用户列表"
+	@handler ListUserHandler
+	get /user (ListUserRequest) returns (ListUserResponse)
+
+	@doc "修改用户信息"
+	@handler UpdateUserHandler
+	put /user/:id (UpdateUserRequest) returns (UpdateUserResponse)
+
+	@doc "删除用户"
+	@handler DeleteUserHandler
+	delete /user/:id (DeleteUserRequest) returns (BaseMsgResp)
+
+	@doc "批量删除用户"
+	@handler BatchDeleteUserHandler
+	delete /user (BatchDeleteUserRequest) returns (BaseMsgResp)
+
+	@doc "批量新增用户"
+	@handler BatchAddUserHandler
+	post /user/batchAdd (BatchAddUserRequest) returns (BatchAddUserResponse)
+}
+

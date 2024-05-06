@@ -4,6 +4,7 @@ package handler
 import (
 	"net/http"
 
+	user "test/internal/handler/user"
 	"test/internal/svc"
 
 	"github.com/zeromicro/go-zero/rest"
@@ -13,10 +14,48 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 	server.AddRoutes(
 		[]rest.Route{
 			{
+				// 新增用户
+				Method:  http.MethodPost,
+				Path:    "/user",
+				Handler: user.AddUserHandler(serverCtx),
+			},
+			{
+				// 获取用户列表
 				Method:  http.MethodGet,
-				Path:    "/from/:name",
-				Handler: TestHandler(serverCtx),
+				Path:    "/user",
+				Handler: user.ListUserHandler(serverCtx),
+			},
+			{
+				// 批量删除用户
+				Method:  http.MethodDelete,
+				Path:    "/user",
+				Handler: user.BatchDeleteUserHandler(serverCtx),
+			},
+			{
+				// 获取用户详情
+				Method:  http.MethodGet,
+				Path:    "/user/:id",
+				Handler: user.DetailUserHandler(serverCtx),
+			},
+			{
+				// 修改用户信息
+				Method:  http.MethodPut,
+				Path:    "/user/:id",
+				Handler: user.UpdateUserHandler(serverCtx),
+			},
+			{
+				// 删除用户
+				Method:  http.MethodDelete,
+				Path:    "/user/:id",
+				Handler: user.DeleteUserHandler(serverCtx),
+			},
+			{
+				// 批量新增用户
+				Method:  http.MethodPost,
+				Path:    "/user/batchAdd",
+				Handler: user.BatchAddUserHandler(serverCtx),
 			},
 		},
+		rest.WithPrefix("/test/v1"),
 	)
 }

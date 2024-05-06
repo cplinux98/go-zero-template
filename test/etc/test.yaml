@@ -1,0 +1,9 @@
+Name: test
+Host: 0.0.0.0
+Port: 9999
+Timeout: 300000
+Mode: dev
+DB:
+  DataSource: root:Qwer@1234#$@tcp(127.0.0.1:33069)/go-zero-template?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai
+Cache:
+  - Host: "127.0.0.1:36379"
