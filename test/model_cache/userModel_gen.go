@@ -32,7 +32,7 @@ type (
 		FindOne(ctx context.Context, id int64) (*User, error)
 		FindOneByMobile(ctx context.Context, mobile string) (*User, error)
 		Update(ctx context.Context, session sqlx.Session, data *User) (sql.Result, error)
-		Delete(ctx context.Context, id int64) error
+		Delete(ctx context.Context, session sqlx.Session, id int64) (sql.Result, error)
 	}
 
 	defaultUserModel struct {
@@ -60,19 +60,24 @@ func newUserModel(conn sqlx.SqlConn, c cache.CacheConf, opts ...cache.Option) *d
 	}
 }
 
-func (m *defaultUserModel) Delete(ctx context.Context, id int64) error {
+func (m *defaultUserModel) Delete(ctx context.Context, session sqlx.Session, id int64) (sql.Result, error) {
 	data, err := m.FindOne(ctx, id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	userIdKey := fmt.Sprintf("%s%v", cacheUserIdPrefix, id)
 	userMobileKey := fmt.Sprintf("%s%v", cacheUserMobilePrefix, data.Mobile)
-	_, err = m.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (result sql.Result, err error) {
+	return m.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (result sql.Result, err error) {
 		query := fmt.Sprintf("delete from %s where `id` = ?", m.table)
+
+		if session != nil {
+			return session.ExecCtx(ctx, query, id)
+		}
+
 		return conn.ExecCtx(ctx, query, id)
+
 	}, userIdKey, userMobileKey)
-	return err
 }
 
 func (m *defaultUserModel) FindOne(ctx context.Context, id int64) (*User, error) {

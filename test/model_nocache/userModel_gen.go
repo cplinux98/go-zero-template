@@ -27,7 +27,7 @@ type (
 		FindOne(ctx context.Context, id int64) (*User, error)
 		FindOneByMobile(ctx context.Context, mobile string) (*User, error)
 		Update(ctx context.Context, session sqlx.Session, data *User) (sql.Result, error)
-		Delete(ctx context.Context, id int64) error
+		Delete(ctx context.Context, session sqlx.Session, id int64) (sql.Result, error)
 	}
 
 	defaultUserModel struct {
@@ -55,10 +55,15 @@ func newUserModel(conn sqlx.SqlConn) *defaultUserModel {
 	}
 }
 
-func (m *defaultUserModel) Delete(ctx context.Context, id int64) error {
+func (m *defaultUserModel) Delete(ctx context.Context, session sqlx.Session, id int64) (sql.Result, error) {
+
 	query := fmt.Sprintf("delete from %s where `id` = ?", m.table)
-	_, err := m.conn.ExecCtx(ctx, query, id)
-	return err
+
+	if session != nil {
+		return session.ExecCtx(ctx, query, id)
+	}
+
+	return m.conn.ExecCtx(ctx, query, id)
 }
 
 func (m *defaultUserModel) FindOne(ctx context.Context, id int64) (*User, error) {
