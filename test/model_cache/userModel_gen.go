@@ -31,7 +31,7 @@ type (
 		Insert(ctx context.Context, session sqlx.Session, data *User) (sql.Result, error)
 		FindOne(ctx context.Context, id int64) (*User, error)
 		FindOneByMobile(ctx context.Context, mobile string) (*User, error)
-		Update(ctx context.Context, data *User) error
+		Update(ctx context.Context, session sqlx.Session, data *User) (sql.Result, error)
 		Delete(ctx context.Context, id int64) error
 	}
 
@@ -125,19 +125,24 @@ func (m *defaultUserModel) Insert(ctx context.Context, session sqlx.Session, dat
 
 }
 
-func (m *defaultUserModel) Update(ctx context.Context, newData *User) error {
+func (m *defaultUserModel) Update(ctx context.Context, session sqlx.Session, newData *User) (sql.Result, error) {
 	data, err := m.FindOne(ctx, newData.Id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	userIdKey := fmt.Sprintf("%s%v", cacheUserIdPrefix, data.Id)
 	userMobileKey := fmt.Sprintf("%s%v", cacheUserMobilePrefix, data.Mobile)
-	_, err = m.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (result sql.Result, err error) {
+	return m.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (result sql.Result, err error) {
 		query := fmt.Sprintf("update %s set %s where `id` = ?", m.table, userRowsWithPlaceHolder)
+
+		if session != nil {
+			return session.ExecCtx(ctx, query, newData.Mobile, newData.Password, newData.Nickname, newData.Sex, newData.Avatar, newData.Info, newData.Id)
+		}
+
 		return conn.ExecCtx(ctx, query, newData.Mobile, newData.Password, newData.Nickname, newData.Sex, newData.Avatar, newData.Info, newData.Id)
+
 	}, userIdKey, userMobileKey)
-	return err
 }
 
 func (m *defaultUserModel) formatPrimary(primary any) string {
