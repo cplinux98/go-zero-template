@@ -51,12 +51,19 @@ func (l *UpdateUserLogic) UpdateUser(req *types.UpdateUserRequest) (resp *types.
 	}
 	newUser.Id = req.Id
 
-	err = l.svcCtx.UserModel.Update(l.ctx, nil, &newUser)
+	update, err := l.svcCtx.UserModel.Update(l.ctx, nil, &newUser)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, errors.Wrapf(xerr.NewErrCode(xerr.DB_ERROR), "UpdateUser Update err %v", err)
 	}
 	if err == sql.ErrNoRows {
 		return nil, xerr.NewErrCode(xerr.USER_ID_NOT_EXISTS_ERROR)
+	}
+	affected, err := update.RowsAffected()
+	if err != nil {
+		return nil, errors.Wrapf(xerr.NewErrCode(xerr.DB_ERROR), "UpdateUser RowsAffected err %v", err)
+	}
+	if affected == 0 {
+		return nil, xerr.NewErrCode(xerr.DB_UPDATE_AFFECTED_ZERO_ERROR)
 	}
 
 	// 4.把更新的结果查询回来

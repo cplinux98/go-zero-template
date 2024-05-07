@@ -44,3 +44,7 @@ goctl model mysql ddl --cache -src user.sql -dir model --home ../ --style goZero
 模板里面有些关于测试项目的包，需要修改成自己的包
 - api/handler.tpl
   - test -> 你自己的
+- 根据id删除的函数模板在model/update.tpl里面，只有这个模板里面有相关变量可以使用
+
+## 已知问题
+

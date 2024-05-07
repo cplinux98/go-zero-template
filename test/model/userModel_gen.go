@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Masterminds/squirrel"
+	pkgErrors "github.com/pkg/errors"
 	"github.com/zeromicro/go-zero/core/stores/builder"
 	"github.com/zeromicro/go-zero/core/stores/cache"
 	"github.com/zeromicro/go-zero/core/stores/sqlc"
@@ -28,11 +30,20 @@ var (
 
 type (
 	userModel interface {
-		Insert(ctx context.Context,session sqlx.Session, data *User) (sql.Result, error)
+		Trans(ctx context.Context, fn func(context context.Context, session sqlx.Session) error) error
+		SelectBuilder() squirrel.SelectBuilder
+		InsertBuilder() squirrel.InsertBuilder
+		Insert(ctx context.Context, session sqlx.Session, data *User) (sql.Result, error)
+		InsertMany(ctx context.Context, session sqlx.Session, list []*User) (sql.Result, error)
 		FindOne(ctx context.Context, id int64) (*User, error)
+		FindManyByBuilderNoCache(ctx context.Context, builder squirrel.SelectBuilder, orderBy string) ([]*User, error)
+		FindCountByBuilderNoCache(ctx context.Context, builder squirrel.SelectBuilder, field string) (uint64, error)
+		FindPageListByPageWithTotal(ctx context.Context, builder squirrel.SelectBuilder, page, pageSize uint64, orderBy string) ([]*User, uint64, error)
 		FindOneByMobile(ctx context.Context, mobile string) (*User, error)
-		Update(ctx context.Context,session sqlx.Session, data *User) error
-		Delete(ctx context.Context,session sqlx.Session, id int64) error
+		Update(ctx context.Context, session sqlx.Session, data *User) (sql.Result, error)
+		DeleteBuilder() squirrel.DeleteBuilder
+		Delete(ctx context.Context, session sqlx.Session, id int64) (sql.Result, error)
+		DeleteManyByIds(ctx context.Context, session sqlx.Session, ids interface{}) (sql.Result, error)
 	}
 
 	defaultUserModel struct {
@@ -60,22 +71,34 @@ func newUserModel(conn sqlx.SqlConn, c cache.CacheConf, opts ...cache.Option) *d
 	}
 }
 
-func (m *defaultUserModel) Delete(ctx context.Context, session sqlx.Session, id int64) error {
+// DeleteBuilder
+//
+//	@Description: 构建删除语句
+//	@Author cplinux98 2024-05-06 00:02:47
+//	@receiver m
+//	@return squirrel.DeleteBuilder
+func (m *defaultUserModel) DeleteBuilder() squirrel.DeleteBuilder {
+	return squirrel.Delete(m.table)
+}
+
+func (m *defaultUserModel) Delete(ctx context.Context, session sqlx.Session, id int64) (sql.Result, error) {
 	data, err := m.FindOne(ctx, id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	userIdKey := fmt.Sprintf("%s%v", cacheUserIdPrefix, id)
 	userMobileKey := fmt.Sprintf("%s%v", cacheUserMobilePrefix, data.Mobile)
-	_, err = m.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (result sql.Result, err error) {
+	return m.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (result sql.Result, err error) {
 		query := fmt.Sprintf("delete from %s where `id` = ?", m.table)
+
 		if session != nil {
-			return session.Exec(query, id)
+			return session.ExecCtx(ctx, query, id)
 		}
+
 		return conn.ExecCtx(ctx, query, id)
+
 	}, userIdKey, userMobileKey)
-	return err
 }
 
 func (m *defaultUserModel) FindOne(ctx context.Context, id int64) (*User, error) {
@@ -92,6 +115,127 @@ func (m *defaultUserModel) FindOne(ctx context.Context, id int64) (*User, error)
 		return nil, ErrNotFound
 	default:
 		return nil, err
+	}
+}
+
+// FindManyByBuilderNoCache
+//
+//	@Description: 根据builder进行查询，没有使用缓存
+//	@Author cplinux98 2024-05-06 11:16:56
+//	@receiver m
+//	@param ctx
+//	@param builder
+//	@param orderBy  排序语句
+//	@return []*User
+//	@return error
+func (m *defaultUserModel) FindManyByBuilderNoCache(ctx context.Context, builder squirrel.SelectBuilder, orderBy string) ([]*User, error) {
+	builder = builder.Columns(userRows)
+
+	if orderBy == "" {
+		builder = builder.OrderBy("id DESC")
+	} else {
+		builder = builder.OrderBy(orderBy)
+	}
+
+	query, values, err := builder.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	var resp []*User
+
+	err = m.QueryRowsNoCacheCtx(ctx, &resp, query, values...)
+
+	switch err {
+	case nil:
+		return resp, nil
+	default:
+		return nil, err
+	}
+
+}
+
+// FindCountByBuilderNoCache
+//
+//	@Description: 根据builder进行count，没有缓存
+//	@Author cplinux98 2024-05-06 11:22:31
+//	@receiver m
+//	@param ctx
+//	@param builder
+//	@param field count的字段名
+//	@return uint64
+//	@return error
+func (m *defaultUserModel) FindCountByBuilderNoCache(ctx context.Context, builder squirrel.SelectBuilder, field string) (uint64, error) {
+	if len(field) == 0 {
+		return 0, pkgErrors.Wrapf(pkgErrors.New("FindCountByBuilderNoCache Least One Field"), "FindCountByBuilderNoCache Least One Field")
+	}
+
+	builder = builder.Columns("COUNT(" + field + ")")
+	query, values, err := builder.ToSql()
+
+	if err != nil {
+		return 0, err
+	}
+
+	var resp uint64
+
+	err = m.QueryRowNoCacheCtx(ctx, &resp, query, values...)
+
+	switch err {
+	case nil:
+		return resp, nil
+	default:
+		return 0, err
+	}
+}
+
+// FindPageListByPageWithTotal
+//
+//	@Description: 根据分页参数查询
+//	@Author cplinux98 2024-05-06 11:32:51
+//	@receiver m
+//	@param ctx
+//	@param builder  查询参数构建
+//	@param page     页数
+//	@param pageSize 每页多少条
+//	@param orderBy  orderBy语句
+//	@return []*User
+//	@return uint64  当前条件下的总数
+//	@return error
+func (m *defaultUserModel) FindPageListByPageWithTotal(ctx context.Context, builder squirrel.SelectBuilder, page, pageSize uint64, orderBy string) ([]*User, uint64, error) {
+	total, err := m.FindCountByBuilderNoCache(ctx, builder, "id")
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	builder = builder.Columns(userRows)
+
+	if orderBy == "" {
+		builder = builder.OrderBy("id DESC")
+	} else {
+		builder = builder.OrderBy(orderBy)
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	offset := (page - 1) * pageSize
+	query, values, err := builder.Offset(offset).Limit(pageSize).ToSql()
+
+	if err != nil {
+		return nil, total, err
+	}
+
+	var resp []*User
+
+	err = m.QueryRowsNoCacheCtx(ctx, &resp, query, values...)
+
+	switch err {
+	case nil:
+		return resp, total, nil
+	default:
+		return nil, total, err
 	}
 }
 
@@ -115,28 +259,99 @@ func (m *defaultUserModel) FindOneByMobile(ctx context.Context, mobile string) (
 	}
 }
 
-func (m *defaultUserModel) Insert(ctx context.Context,session sqlx.Session, data *User) (sql.Result, error) {
+// Trans
+//
+//	@Description: 事务
+//	@Author cplinux98 2024-05-07 18:45:47
+//	@receiver m
+//	@param ctx
+//	@param fn
+//	@return error
+func (m *defaultUserModel) Trans(ctx context.Context, fn func(ctx context.Context, session sqlx.Session) error) error {
+
+	return m.TransactCtx(ctx, func(ctx context.Context, session sqlx.Session) error {
+		return fn(ctx, session)
+	})
+
+}
+
+// SelectBuilder
+//
+//	@Description: 构建查询语句
+//	@Author cplinux98 2024-05-06 00:04:41
+//	@receiver m
+//	@return squirrel.SelectBuilder
+func (m *defaultUserModel) SelectBuilder() squirrel.SelectBuilder {
+	return squirrel.Select().From(m.table)
+}
+
+// InsertBuilder
+//
+//	@Description: 构建插入语句
+//	@Author cplinux98 2024-05-06 00:01:27
+//	@receiver m
+//	@return squirrel.InsertBuilder
+func (m *defaultUserModel) InsertBuilder() squirrel.InsertBuilder {
+	return squirrel.Insert(m.table)
+}
+
+func (m *defaultUserModel) Insert(ctx context.Context, session sqlx.Session, data *User) (sql.Result, error) {
 	userIdKey := fmt.Sprintf("%s%v", cacheUserIdPrefix, data.Id)
 	userMobileKey := fmt.Sprintf("%s%v", cacheUserMobilePrefix, data.Mobile)
-	ret, err := m.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (result sql.Result, err error) {
+	return m.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (result sql.Result, err error) {
 		query := fmt.Sprintf("insert into %s (%s) values (?, ?, ?, ?, ?, ?)", m.table, userRowsExpectAutoSet)
 		if session != nil {
 			return session.ExecCtx(ctx, query, data.Mobile, data.Password, data.Nickname, data.Sex, data.Avatar, data.Info)
 		}
 		return conn.ExecCtx(ctx, query, data.Mobile, data.Password, data.Nickname, data.Sex, data.Avatar, data.Info)
 	}, userIdKey, userMobileKey)
-	return ret, err
+
 }
 
-func (m *defaultUserModel) Update(ctx context.Context,session sqlx.Session, newData *User) error {
+// InsertMany
+//
+//	@Description: 批量新增
+//	@Author cplinux98 2024-05-07 18:49:26
+//	@receiver m
+//	@param ctx
+//	@param session
+//	@param list
+//	@return sql.Result
+//	@return error
+func (m *defaultUserModel) InsertMany(ctx context.Context, session sqlx.Session, list []*User) (sql.Result, error) {
+	cacheKeys := make([]string, 0)
+	insertBuilder := m.InsertBuilder().Columns(userRowsExpectAutoSet)
+
+	for _, data := range list {
+
+		userIdKey := fmt.Sprintf("%s%v", cacheUserIdPrefix, data.Id)
+		userMobileKey := fmt.Sprintf("%s%v", cacheUserMobilePrefix, data.Mobile)
+		cacheKeys = append(cacheKeys, userIdKey, userMobileKey)
+
+		insertBuilder = insertBuilder.Values(data.Mobile, data.Password, data.Nickname, data.Sex, data.Avatar, data.Info)
+	}
+
+	query, values, err2 := insertBuilder.ToSql()
+	if err2 != nil {
+		return nil, err2
+	}
+	return m.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (result sql.Result, err error) {
+		if session != nil {
+			return session.ExecCtx(ctx, query, values...)
+		}
+		return conn.ExecCtx(ctx, query, values...)
+	}, cacheKeys...)
+}
+
+func (m *defaultUserModel) Update(ctx context.Context, session sqlx.Session, newData *User) (sql.Result, error) {
 	data, err := m.FindOne(ctx, newData.Id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	userIdKey := fmt.Sprintf("%s%v", cacheUserIdPrefix, data.Id)
 	userMobileKey := fmt.Sprintf("%s%v", cacheUserMobilePrefix, data.Mobile)
-	_, err = m.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (result sql.Result, err error) {
+	return m.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (result sql.Result, err error) {
 		query := fmt.Sprintf("update %s set %s where `id` = ?", m.table, userRowsWithPlaceHolder)
 
 		if session != nil {
@@ -144,8 +359,46 @@ func (m *defaultUserModel) Update(ctx context.Context,session sqlx.Session, newD
 		}
 
 		return conn.ExecCtx(ctx, query, newData.Mobile, newData.Password, newData.Nickname, newData.Sex, newData.Avatar, newData.Info, newData.Id)
+
 	}, userIdKey, userMobileKey)
-	return err
+}
+
+// DeleteManyByIds
+//
+//	@Description: 根据id列表删除
+//	@Author cplinux98 2024-05-07 19:26:41
+//	@receiver m
+//	@param ctx
+//	@param session
+//	@param ids  传入对应的主键类型数组，类似[]int64, []string
+//	@return sql.Result
+//	@return error
+func (m *defaultUserModel) DeleteManyByIds(ctx context.Context, session sqlx.Session, ids interface{}) (sql.Result, error) {
+	idWhere := m.SelectBuilder().Where(squirrel.Eq{"id": ids})
+	records, err := m.FindManyByBuilderNoCache(ctx, idWhere, "id")
+	if err != nil {
+		return nil, err
+	}
+	cacheKeys := make([]string, 0)
+	for _, data := range records {
+		userIdKey := fmt.Sprintf("%s%v", cacheUserIdPrefix, data.Id)
+		userMobileKey := fmt.Sprintf("%s%v", cacheUserMobilePrefix, data.Mobile)
+		cacheKeys = append(cacheKeys, userIdKey, userMobileKey)
+	}
+
+	query, values, err2 := m.DeleteBuilder().Where(squirrel.Eq{"id": ids}).ToSql()
+	if err2 != nil {
+		return nil, err2
+	}
+
+	return m.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (sql.Result, error) {
+
+		if session != nil {
+			return session.ExecCtx(ctx, query, values...)
+		}
+		return conn.ExecCtx(ctx, query, values...)
+	}, cacheKeys...)
+
 }
 
 func (m *defaultUserModel) formatPrimary(primary any) string {

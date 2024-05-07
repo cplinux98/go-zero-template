@@ -1,3 +1,13 @@
+// DeleteBuilder
+//
+//	@Description: 构建删除语句
+//	@Author cplinux98 2024-05-06 00:02:47
+//	@receiver m
+//	@return squirrel.DeleteBuilder
+func (m *default{{.upperStartCamelObject}}Model) DeleteBuilder() squirrel.DeleteBuilder {
+	return squirrel.Delete(m.table)
+}
+
 func (m *default{{.upperStartCamelObject}}Model) Delete(ctx context.Context, session sqlx.Session, {{.lowerStartCamelPrimaryKey}} {{.dataType}}) (sql.Result,error) {
 	{{if .withCache}}{{if .containsIndexCache}}data, err:=m.FindOne(ctx, {{.lowerStartCamelPrimaryKey}})
 	if err!=nil{
@@ -24,3 +34,5 @@ func (m *default{{.upperStartCamelObject}}Model) Delete(ctx context.Context, ses
 
 	return m.conn.ExecCtx(ctx, query, {{.lowerStartCamelPrimaryKey}}){{end}}
 }
+
+

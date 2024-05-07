@@ -77,7 +77,7 @@ func (l *BatchAddUserLogic) BatchAddUser(req *types.BatchAddUserRequest) (resp *
 			_user.Password = "123456"
 			insertDatas = append(insertDatas, &_user)
 		}
-		insertResult, err := l.svcCtx.UserModel.InsertByBuilderWithCache(ctx, session, insertDatas)
+		insertResult, err := l.svcCtx.UserModel.InsertMany(ctx, session, insertDatas)
 		if err != nil {
 			return errors.Wrapf(xerr.NewErrCode(xerr.DB_ERROR), "BatchAddUser InsertByBuilderWithCache err: %s", err)
 		}
