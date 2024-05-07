@@ -7,6 +7,7 @@ import (
 {{else}}
 
 import "github.com/zeromicro/go-zero/core/stores/sqlx"
+
 {{end}}
 var _ {{.upperStartCamelObject}}Model = (*custom{{.upperStartCamelObject}}Model)(nil)
 
@@ -16,6 +17,7 @@ type (
 	{{.upperStartCamelObject}}Model interface {
 		{{.lowerStartCamelObject}}Model
 		{{if not .withCache}}withSession(session sqlx.Session) {{.upperStartCamelObject}}Model{{end}}
+		// 以下是自己添加的接口
 	}
 
 	custom{{.upperStartCamelObject}}Model struct {
@@ -31,8 +33,7 @@ func New{{.upperStartCamelObject}}Model(conn sqlx.SqlConn{{if .withCache}}, c ca
 }
 
 {{if not .withCache}}
-func (m *custom{{.upperStartCamelObject}}Model) withSession(session sqlx.Session) {{.upperStartCamelObject}}Model {
+func (c *custom{{.upperStartCamelObject}}Model) withSession(session sqlx.Session) {{.upperStartCamelObject}}Model {
     return New{{.upperStartCamelObject}}Model(sqlx.NewSqlConnFromSession(session))
 }
 {{end}}
-

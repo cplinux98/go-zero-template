@@ -11,6 +11,7 @@ func init() {
 	message[TOKEN_GENERATE_ERROR] = "生成token失败"
 	message[DB_ERROR] = "数据库繁忙,请稍后再试"
 	message[DB_UPDATE_AFFECTED_ZERO_ERROR] = "更新数据影响行数为0"
+	message[DB_DELETE_AFFECTED_ZERO_ERROR] = "删除数据影响行数为0"
 	// 用户服务
 	message[USER_EXISTS_ERROR] = "用户已存在"
 	message[USER_ID_NOT_EXISTS_ERROR] = "用户不存在"

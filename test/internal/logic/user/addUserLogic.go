@@ -52,7 +52,8 @@ func (l *AddUserLogic) AddUser(req *types.AddUserRequest) (resp *types.AddUserRe
 	if err != nil {
 		return nil, errors.Wrapf(xerr.NewErrCode(xerr.DB_ERROR), "AddUser LastInsertId err: %v, user: %+v", err, user)
 	}
-	// 3.进行查询数据库数据
+	//return nil, nil
+	//3.进行查询数据库数据
 	one, err := l.svcCtx.UserModel.FindOne(l.ctx, id)
 	if err != nil {
 		return nil, errors.Wrapf(xerr.NewErrCode(xerr.DB_ERROR), "AddUser FindOne err: %v, id: %+v", err, id)

@@ -28,12 +28,19 @@ func NewDeleteUserLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Delete
 }
 
 func (l *DeleteUserLogic) DeleteUser(req *types.DeleteUserRequest) (resp *types.BaseMsgResp, err error) {
-	err = l.svcCtx.UserModel.Delete(l.ctx, nil, req.Id)
+	result, err := l.svcCtx.UserModel.Delete(l.ctx, nil, req.Id)
 	if err != nil && err != model.ErrNotFound {
 		return nil, errors.Wrapf(xerr.NewErrCode(xerr.DB_ERROR), "DeleteUser Delete err %v", err)
 	}
 	if err == model.ErrNotFound {
 		return nil, xerr.NewErrCode(xerr.USER_ID_NOT_EXISTS_ERROR)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, errors.Wrapf(xerr.NewErrCode(xerr.DB_ERROR), "DeleteUser RowsAffected err %v", err)
+	}
+	if affected == 0 {
+		return nil, xerr.NewErrCode(xerr.DB_DELETE_AFFECTED_ZERO_ERROR)
 	}
 
 	return &types.BaseMsgResp{

@@ -10,6 +10,9 @@ goctl api go -api desc/test.api -dir . --home ../ --style goZero
 ## model生成
 ```bash
 goctl model mysql ddl --cache -src user.sql -dir model --home ../ --style goZero
+
+goctl model mysql ddl --cache -src user.sql -dir model_cache --home ../ --style goZero
+goctl model mysql ddl -src user.sql -dir model_nocache/ --home ../ --style goZero
 ```
 
 
