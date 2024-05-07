@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
 	"test/common/xerr"
+	"test/model"
 
 	"test/internal/svc"
 	"test/internal/types"
@@ -54,17 +55,33 @@ func (l *BatchAddUserLogic) BatchAddUser(req *types.BatchAddUserRequest) (resp *
 	}
 	// 开启事务插入
 	err = l.svcCtx.UserModel.Trans(l.ctx, func(ctx context.Context, session sqlx.Session) error {
-		insertBuilder := l.svcCtx.UserModel.InsertBuilder()
+		//insertBuilder := l.svcCtx.UserModel.InsertBuilder()
+		//for _, data := range req.Data {
+		//	// data.Mobile, data.Password, data.Nickname, data.Sex, data.Avatar, data.Info
+		//	defaultPassword := "123456"
+		//	insertBuilder = insertBuilder.Values(data.Mobile, defaultPassword, data.Nickname, data.Sex, data.Avatar, data.Info)
+		//}
+		//
+		//insertResult, err2 := l.svcCtx.UserModel.InsertByBuilderNoCache(ctx, session, insertBuilder)
+		//if err2 != nil {
+		//	return errors.Wrapf(xerr.NewErrCode(xerr.DB_ERROR), "BatchAddUser InsertByBuilderNoCache err: %s", err)
+		//}
+		insertDatas := make([]*model.User, 0)
 		for _, data := range req.Data {
-			// data.Mobile, data.Password, data.Nickname, data.Sex, data.Avatar, data.Info
-			defaultPassword := "123456"
-			insertBuilder = insertBuilder.Values(data.Mobile, defaultPassword, data.Nickname, data.Sex, data.Avatar, data.Info)
+			var _user model.User
+			err = copier.Copy(&_user, data)
+			if err != nil {
+				return err
+			}
+			// 设置默认密码
+			_user.Password = "123456"
+			insertDatas = append(insertDatas, &_user)
+		}
+		insertResult, err := l.svcCtx.UserModel.InsertByBuilderWithCache(ctx, session, insertDatas)
+		if err != nil {
+			return errors.Wrapf(xerr.NewErrCode(xerr.DB_ERROR), "BatchAddUser InsertByBuilderWithCache err: %s", err)
 		}
 
-		insertResult, err2 := l.svcCtx.UserModel.InsertByBuilderNoCache(ctx, session, insertBuilder)
-		if err2 != nil {
-			return errors.Wrapf(xerr.NewErrCode(xerr.DB_ERROR), "BatchAddUser InsertByBuilderNoCache err: %s", err)
-		}
 		affected, err2 := insertResult.RowsAffected()
 		if err2 != nil {
 			return errors.Wrapf(xerr.NewErrCode(xerr.DB_ERROR), "BatchAddUser RowsAffected err: %s", err)

@@ -24,7 +24,9 @@ type (
 		UpdateBuilder() squirrel.UpdateBuilder
 		SelectBuilder() squirrel.SelectBuilder
 		InsertByBuilderNoCache(ctx context.Context, session sqlx.Session, builder squirrel.InsertBuilder) (sql.Result, error)
+		InsertByBuilderWithCache(ctx context.Context, session sqlx.Session, list []*User) (sql.Result, error)
 		DeleteByBuilderNoCache(ctx context.Context, session sqlx.Session, builder squirrel.DeleteBuilder) (sql.Result, error)
+		DeleteManyByIds(ctx context.Context, session sqlx.Session, ids []int64) (sql.Result, error)
 		UpdateByBuilderNoCache(ctx context.Context, session sqlx.Session, builder squirrel.UpdateBuilder) (sql.Result, error)
 		FindManyByBuilderNoCache(ctx context.Context, builder squirrel.SelectBuilder, orderBy string) ([]*User, error)
 		FindCountByBuilderNoCache(ctx context.Context, builder squirrel.SelectBuilder, field string) (uint64, error)
@@ -72,7 +74,7 @@ func (c *customUserModel) Trans(ctx context.Context, fn func(ctx context.Context
 //	@receiver c
 //	@return squirrel.InsertBuilder
 func (c *customUserModel) InsertBuilder() squirrel.InsertBuilder {
-	return squirrel.Insert(c.table).Columns(userRowsExpectAutoSet)
+	return squirrel.Insert(c.table)
 }
 
 // DeleteBuilder
@@ -127,6 +129,29 @@ func (c *customUserModel) InsertByBuilderNoCache(ctx context.Context, session sq
 	return c.ExecNoCacheCtx(ctx, query, values...)
 }
 
+func (c *customUserModel) InsertByBuilderWithCache(ctx context.Context, session sqlx.Session, list []*User) (sql.Result, error) {
+	// 构建要清理的缓存和构建插入语句
+	keys := make([]string, 0)
+	insertBuilder := c.InsertBuilder().Columns(userRowsExpectAutoSet)
+
+	for _, data := range list {
+		keys = append(keys, fmt.Sprintf("%s%v", cacheUserIdPrefix, data.Id), fmt.Sprintf("%s%v", cacheUserMobilePrefix, data.Mobile))
+		insertBuilder = insertBuilder.Values(data.Mobile, data.Password, data.Nickname, data.Sex, data.Avatar, data.Info)
+	}
+	query, values, err2 := insertBuilder.ToSql()
+	if err2 != nil {
+		return nil, err2
+	}
+
+	ret, err := c.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (result sql.Result, err error) {
+		if session != nil {
+			return session.ExecCtx(ctx, query, values...)
+		}
+		return conn.ExecCtx(ctx, query, values...)
+	}, keys...)
+	return ret, err
+}
+
 // DeleteByBuilderNoCache
 //
 //	@Description: 使用builder构建删除语句，没有使用缓存
@@ -147,6 +172,32 @@ func (c *customUserModel) DeleteByBuilderNoCache(ctx context.Context, session sq
 	}
 
 	return c.ExecNoCacheCtx(ctx, query, values...)
+}
+
+func (c *customUserModel) DeleteManyByIds(ctx context.Context, session sqlx.Session, ids []int64) (sql.Result, error) {
+	idWhere := c.SelectBuilder().Where(squirrel.Eq{"id": ids})
+	deleteRecords, err := c.FindManyByBuilderNoCache(ctx, idWhere, "id")
+	if err != nil {
+		return nil, err
+	}
+	cacheKeys := make([]string, 0)
+	for _, deleteRecord := range deleteRecords {
+		userIdKey := fmt.Sprintf("%s%v", cacheUserIdPrefix, deleteRecord.Id)
+		userMobileKey := fmt.Sprintf("%s%v", cacheUserMobilePrefix, deleteRecord.Mobile)
+		cacheKeys = append(cacheKeys, userIdKey, userMobileKey)
+	}
+	fmt.Println(cacheKeys)
+	return c.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (sql.Result, error) {
+		query, values, err2 := c.DeleteBuilder().Where(squirrel.Eq{"id": ids}).ToSql()
+		if err2 != nil {
+			return nil, err2
+		}
+
+		if session != nil {
+			return session.ExecCtx(ctx, query, values...)
+		}
+		return conn.ExecCtx(ctx, query, values...)
+	}, cacheKeys...)
 }
 
 // UpdateByBuilderNoCache

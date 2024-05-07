@@ -40,12 +40,16 @@ func (l *BatchDeleteUserLogic) BatchDeleteUser(req *types.BatchDeleteUserRequest
 	}
 	// 使用事务进行删除
 	err = l.svcCtx.UserModel.Trans(l.ctx, func(ctx context.Context, session sqlx.Session) error {
-		deleteBuilder := l.svcCtx.UserModel.DeleteBuilder().Where(squirrel.Eq{"id": req.Ids})
-		cache, err2 := l.svcCtx.UserModel.DeleteByBuilderNoCache(ctx, session, deleteBuilder)
-		if err2 != nil {
-			return errors.Wrapf(xerr.NewErrCode(xerr.DB_ERROR), "BatchDeleteUser DeleteByBuilderNoCache err %v", err)
+		//deleteBuilder := l.svcCtx.UserModel.DeleteBuilder().Where(squirrel.Eq{"id": req.Ids})
+		//deleteResult, err2 := l.svcCtx.UserModel.DeleteByBuilderNoCache(ctx, session, deleteBuilder)
+		//if err2 != nil {
+		//	return errors.Wrapf(xerr.NewErrCode(xerr.DB_ERROR), "BatchDeleteUser DeleteByBuilderNoCache err %v", err)
+		//}
+		deleteResult, err := l.svcCtx.UserModel.DeleteManyByIds(ctx, session, req.Ids)
+		if err != nil {
+			return errors.Wrapf(xerr.NewErrCode(xerr.DB_ERROR), "BatchDeleteUser DeleteManyByIds err %v", err)
 		}
-		affected, err2 := cache.RowsAffected()
+		affected, err2 := deleteResult.RowsAffected()
 		if err2 != nil {
 			return errors.Wrapf(xerr.NewErrCode(xerr.DB_ERROR), "BatchDeleteUser RowsAffected err %v", err)
 		}
@@ -55,6 +59,10 @@ func (l *BatchDeleteUserLogic) BatchDeleteUser(req *types.BatchDeleteUserRequest
 
 		return nil
 	})
+
+	if err != nil {
+		return nil, err
+	}
 
 	return &types.BaseMsgResp{
 		Code: xerr.OK,
