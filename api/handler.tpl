@@ -2,8 +2,10 @@ package {{.PkgName}}
 
 import (
 	"net/http"
-    "test/common/result"
-	"github.com/zeromicro/go-zero/rest/httpx"
+    "zero-admin-core/common/result"
+    {{if .HasRequest}}
+    "github.com/zeromicro/go-zero/rest/httpx"
+    {{end}}
 	{{.ImportPackages}}
 )
 
